@@ -2,7 +2,8 @@ import angr
 import claripy
 import sys
 import logging
-
+import string
+import random
 sys.set_int_max_str_digits(0)
 
 l = logging.getLogger("overflow")
@@ -26,12 +27,11 @@ def main(args):
     start_address = int(args.start_address, 16)
 
     # Set up the initial state with a symbolic stdin
-    sym = claripy.BVS("stdin", 800*8)
-    initial_state = project.factory.entry_state(addr=start_address, stdin=sym)
+    alphabet = string.printable.replace('\x00', '')
+    stdin_payload = ''.join(random.choice(alphabet) for i in range(900))
+    sym = claripy.BVV(stdin_payload.encode())
 
-    # Add constraints to limit input characters to printable ASCII
-    initial_state.add_constraints(*[sym[i] >= 0x20 for i in range(256)])
-    initial_state.add_constraints(*[sym[i] <= 0x7e for i in range(256)])
+    initial_state = project.factory.entry_state(addr=start_address, stdin=sym)
 
     # Create a SimulationManager that keeps unconstrained states
     simgr = project.factory.simulation_manager(initial_state, save_unconstrained=True)
@@ -44,6 +44,7 @@ def main(args):
 
     # Check for buffer overflow and restore program counter
     simgr = check_buffer_overflow(simgr, sym)
+
 
 if __name__ == '__main__':
     import argparse
